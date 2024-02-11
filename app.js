@@ -15,7 +15,7 @@ app.use("/companies", companiesRoutes);
 /** 404 handler */
 
 app.use(function(req, res, next) {
-  const err = new ExpressError("Not Found", 404);
+  const err = new ExpressError("Page Not Found", 404);
   return next(err);
 });
 
