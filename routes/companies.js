@@ -20,7 +20,10 @@ router.get("/:code", async function (req, res, next) {
             const err = new ExpressError("Company Not Found", 404);
             return next(err);
         }
-        return res.json({ company: results.rows });
+        const invoices = await db.query(`SELECT * FROM invoices WHERE comp_code = $1`, [req.params.code]);
+        results.rows[0]["invoices"] = invoices.rows;
+
+        return res.json({ company: results.rows[0] });
     }
     catch (err) {
         return next(err);
@@ -35,7 +38,7 @@ router.post("/", async function (req, res, next) {
     try {
         const { code, name, description } = req.body;
         const results = await db.query(`INSERT INTO companies (code, name, description) VALUES ($1, $2, $3) RETURNING code, name, description`, [code, name, description]);
-        return res.json({ company: results.rows });
+        return res.status(201).json({ company: results.rows[0] });
     }
     catch (err) {
         return next(err);
@@ -55,7 +58,7 @@ router.put("/:code", async function (req, res, next) {
             const err = new ExpressError("Company Not Found", 404);
             return next(err);
         }
-        return res.json({ company: results.rows });
+        return res.json({ company: results.rows[0] });
     }
     catch (err) {
         return next(err);
@@ -64,7 +67,11 @@ router.put("/:code", async function (req, res, next) {
 
 router.delete("/:code", async function (req, res, next) {
     try {
-        await db.query(`DELETE FROM companies WHERE code = $1`, [req.params.code]);
+        const result = await db.query(`DELETE FROM companies WHERE code = $1 RETURNING code`, [req.params.code]);
+        if (result.rows.length === 0) {
+            const err = new ExpressError("Company Not Found", 404);
+            return next(err);
+        }
         return res.json({ status: 'deleted'});
     }
     catch (err) {
