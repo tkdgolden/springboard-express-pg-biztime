@@ -15,10 +15,15 @@ let i1 = {
     amt: 100,
 };
 
+let i2 = {
+    comp_code: 'sam',
+    amt: 200,
+};
+
 beforeEach(async function () {
     await db.query(`INSERT INTO companies (code, name, description) VALUES ('${sam.code}', '${sam.name}', '${sam.description}')`);
-    await db.query(`INSERT INTO invoices (comp_code, amt) VALUES ('${i1.comp_code}', '${i1.amt}')`);
-
+    output = await db.query(`INSERT INTO invoices (comp_code, amt) VALUES ('${i1.comp_code}', '${i1.amt}') RETURNING id`);
+    i1.id = output.rows[0].id;
 })
 
 afterEach(async function () {
@@ -35,8 +40,7 @@ describe("GET /invoices", () => {
         const res = await request(app).get("/invoices");
         expect(res.statusCode).toBe(200);
         expect(res.body.invoices.length).toEqual(1);
-
-        expect(res.body.invoices[0].add_date).toEqual("2024-02-15T06:00:00.000Z");
+        expect(res.body.invoices[0].add_date).toContain("2024-02");
         expect(res.body.invoices[0].amt).toEqual(i1.amt);
         expect(res.body.invoices[0].comp_code).toEqual(i1.comp_code);
         expect(res.body.invoices[0].paid).toEqual(false);
@@ -44,121 +48,141 @@ describe("GET /invoices", () => {
     })
 })
 
-// describe("GET /companies/:name", () => {
-//     test("Get company by name", async () => {
-//         const res = await request(app).get(`/companies/${sam.code}`);
-//         expect(res.statusCode).toBe(200)
-//         expect(res.body).toEqual({
-//             "company": {
-//                 "code": sam.code,
-//                 "description": sam.description, "invoices": [],
-//                 "name": sam.name,
-//             },
-//         })
-//     })
+describe("GET /invoices/:id", () => {
+    test("Get invoice by id", async () => {
+        const res = await request(app).get(`/invoices/${i1.id}`);
+        expect(res.statusCode).toBe(200)
+        expect(res.body.invoice.add_date).toContain("2024-02");
+        expect(res.body.invoice.amt).toEqual(i1.amt);
+        expect(res.body.invoice.comp_code).toEqual(i1.comp_code);
+        expect(res.body.invoice.paid).toEqual(false);
+        expect(res.body.invoice.paid_date).toEqual(null);
+    })
 
-//     test("Responds with 404 for invalid company", async () => {
-//         const res = await request(app).get(`/companies/tesla`);
-//         expect(res.statusCode).toBe(404)
-//     })
-// })
+    test("Responds with 404 for invalid company", async () => {
+        const res = await request(app).get(`/companies/tesla`);
+        expect(res.statusCode).toBe(404)
+    })
+})
 
-// describe("POST /companies", () => {
-//     test("Creating a company", async () => {
-//         const res = await request(app).post("/companies").send(ikea);
-//         expect(res.statusCode).toBe(201);
-//         expect(res.body).toEqual({ company: ikea });
-//     })
+describe("POST /invoices", () => {
+    test("Creating an invoice", async () => {
+        const res = await request(app).post("/invoices").send(i2);
+        expect(res.statusCode).toBe(201);
+        expect(res.body.invoice.add_date).toContain("2024-02");
+        expect(res.body.invoice.amt).toEqual(i2.amt);
+        expect(res.body.invoice.comp_code).toEqual(i2.comp_code);
+        expect(res.body.invoice.paid).toEqual(false);
+        expect(res.body.invoice.paid_date).toEqual(null);
+    })
 
-//     test("Responds with 400 if code is missing", async () => {
-//         const res = await request(app).post("/companies").send({
-//             name: "Ikea",
-//             description: "Sleek and minimal, falls apart"
-//         });
-//         expect(res.statusCode).toBe(400);
-//     })
+    test("Responds with 400 if company code is missing", async () => {
+        const res = await request(app).post("/invoices").send({
+            amt: 200,
+        });
+        expect(res.statusCode).toBe(400);
+    })
 
-//     test("Responds with 400 if name is missing", async () => {
-//         const res = await request(app).post("/companies").send({
-//             code: "ikea",
-//             description: "Sleek and minimal, falls apart"
-//         });
-//         expect(res.statusCode).toBe(400);
-//     })
+    test("Responds with 400 if amount is missing", async () => {
+        const res = await request(app).post("/invoices").send({
+            comp_code: 'sam',
+        });
+        expect(res.statusCode).toBe(400);
+    })
+})
 
-//     test("Responds with 400 if description is missing", async () => {
-//         const res = await request(app).post("/companies").send({
-//             code: "ikea",
-//             name: "Ikea"
-//         });
-//         expect(res.statusCode).toBe(400);
-//     })
-// })
+describe("/PUT /invoices/:name", () => {
+    test("Updating an invoice's amount", async () => {
+        const res = await request(app).put(`/invoices/${i1.id}`).send({
+            amt: 150,
+            paid: false
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.invoice.add_date).toContain("2024-02");
+        expect(res.body.invoice.amt).toEqual(150);
+        expect(res.body.invoice.comp_code).toEqual(i1.comp_code);
+        expect(res.body.invoice.paid).toEqual(false);
+        expect(res.body.invoice.paid_date).toEqual(null);
+    })
 
-// describe("/PUT /companies/:name", () => {
-//     test("Updating a company's name", async () => {
-//         const res = await request(app).put(`/companies/${sam.code}`).send({
-//             name: "Subaru",
-//             description: "Good phones, terrible appliances"
-//         });
-//         expect(res.statusCode).toBe(200);
-//         expect(res.body).toEqual({
-//             company: {
-//                 code: "sam",
-//                 name: "Subaru",
-//                 description: "Good phones, terrible appliances"
-//             }
-//         });
-//     })
+    test("Updating an invoice's paid status, should update paid date also", async () => {
+        const res = await request(app).put(`/invoices/${i1.id}`).send({
+            amt: 100,
+            paid: true
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.invoice.add_date).toContain("2024-02");
+        expect(res.body.invoice.amt).toEqual(100);
+        expect(res.body.invoice.comp_code).toEqual(i1.comp_code);
+        expect(res.body.invoice.paid).toEqual(true);
+        expect(res.body.invoice.paid_date).toContain("2024-02");
+    })
 
-//     test("Updating a company's description", async () => {
-//         const res = await request(app).put(`/companies/${sam.code}`).send({
-//             name: "Samsung",
-//             description: "android is better"
-//         });
-//         expect(res.statusCode).toBe(200);
-//         expect(res.body).toEqual({
-//             company: {
-//                 code: "sam",
-//                 name: "Samsung",
-//                 description: "android is better"
-//             }
-//         });
-//     })
-
-//     test("Updating a company's name AND description", async () => {
-//         const res = await request(app).put(`/companies/${sam.code}`).send({
-//             name: "Subaru",
-//             description: "android is better"
-//         });
-//         expect(res.statusCode).toBe(200);
-//         expect(res.body).toEqual({
-//             company: {
-//                 code: "sam",
-//                 name: "Subaru",
-//                 description: "android is better"
-//             }
-//         });
-//     })
-
-//     test("Responds with 404 for invalid code", async () => {
-//         const res = await request(app).put(`/companies/Dawn`).send({
-//             name: "Subaru",
-//             description: "android is better"
-//         });
-//         expect(res.statusCode).toBe(404);
-//     })
-// })
-
-// describe("/DELETE /companies/:code", () => {
-//     test("Deleting a company", async () => {
-//       const res = await request(app).delete(`/companies/${sam.code}`);
-//       expect(res.statusCode).toBe(200);
-//       expect(res.body).toEqual({ status: 'deleted' })
-//     })
+    test("Updating an invoice's paid status from true to false, should update paid date to null also", async () => {
+        await request(app).put(`/invoices/${i1.id}`).send({
+            amt: 100,
+            paid: true
+        });
+        const res = await request(app).put(`/invoices/${i1.id}`).send({
+            amt: 100,
+            paid: false
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.invoice.add_date).toContain("2024-02");
+        expect(res.body.invoice.amt).toEqual(100);
+        expect(res.body.invoice.comp_code).toEqual(i1.comp_code);
+        expect(res.body.invoice.paid).toEqual(false);
+        expect(res.body.invoice.paid_date).toBe(null);
+    })
     
-//     test("Responds with 404 for deleting invalid company", async () => {
-//       const res = await request(app).delete(`/companies/msi`);
-//       expect(res.statusCode).toBe(404);
-//     })
-//   })
+    test("Updating an invoice's amt and paid status, should update paid date also", async () => {
+        const res = await request(app).put(`/invoices/${i1.id}`).send({
+            amt: 200,
+            paid: true
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.body.invoice.add_date).toContain("2024-02");
+        expect(res.body.invoice.amt).toEqual(200);
+        expect(res.body.invoice.comp_code).toEqual(i1.comp_code);
+        expect(res.body.invoice.paid).toEqual(true);
+        expect(res.body.invoice.paid_date).toContain("2024-02");
+    })
+
+    test("Responds with 400 if amount is missing", async () => {
+        const res = await request(app).put(`/invoices/${i1.id}`).send({
+            paid: true
+        });
+        expect(res.statusCode).toBe(400);
+    })
+
+    test("Responds with 400 if paid is missing", async () => {
+        const res = await request(app).put(`/invoices/${i1.id}`).send({
+            amt: 100
+        });
+        expect(res.statusCode).toBe(400);
+    })
+
+    test("Responds with 404 for invalid invoice", async () => {
+        const res = await request(app).put(`/invoices/999`).send({
+            amt: 150,
+            paid: true
+        });
+        expect(res.statusCode).toBe(404)
+    })
+})
+
+describe("/DELETE /invoices/:id", () => {
+    test("Deleting an invoice", async () => {
+      const res = await request(app).delete(`/invoices/${i1.id}`);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({ status: 'deleted' })
+
+      const response = await request(app).get("/invoices");
+      expect(response.body.invoices.length).toEqual(0);
+    })
+    
+    test("Responds with 404 for deleting invalid invoice", async () => {
+      const res = await request(app).delete(`/invoices/999`);
+      expect(res.statusCode).toBe(404);
+    })
+  })

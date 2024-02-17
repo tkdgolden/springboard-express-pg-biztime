@@ -18,3 +18,13 @@ CREATE TABLE invoices (
     paid_date date,
     CONSTRAINT invoices_amt_check CHECK ((amt > (0)::double precision))
 );
+
+CREATE TABLE industries (
+  industry text,
+  code text NOT NULL REFERENCES companies ON DELETE CASCADE
+);
+
+CREATE TABLE companies_industries (
+  ind_code text NOT NULL REFERENCES industries ON DELETE CASCADE,
+  comp_code text NOT NULL REFERENCES companies ON DELETE CASCADE
+);

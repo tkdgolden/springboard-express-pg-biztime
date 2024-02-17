@@ -2,6 +2,7 @@ const express = require("express");
 const router = new express.Router();
 const ExpressError = require("../expressError");
 const db = require("../db.js");
+const slugify = require("slugify");
 
 router.get("/", async function (req, res, next) {
     try {
@@ -22,7 +23,8 @@ router.get("/:code", async function (req, res, next) {
         }
         const invoices = await db.query(`SELECT * FROM invoices WHERE comp_code = $1`, [req.params.code]);
         results.rows[0]["invoices"] = invoices.rows;
-
+        const industries = await db.query(`SELECT industries.industry FROM industries JOIN companies_industries ON companies_industries.ind_code = industries.ind_code WHERE companies_industries.comp_code = $1`, [req.params.code]);
+        results.rows[0]["industries"] = industries.rows;
         return res.json({ company: results.rows[0] });
     }
     catch (err) {
@@ -31,12 +33,13 @@ router.get("/:code", async function (req, res, next) {
 })
 
 router.post("/", async function (req, res, next) {
-    if (!req.body.name || !req.body.description || !req.body.code) {
-        const err = new ExpressError("Must Include Code, Name, and Description", 400);
+    if (!req.body.name || !req.body.description) {
+        const err = new ExpressError("Must Include Name and Description", 400);
         return next(err);
     }
     try {
-        const { code, name, description } = req.body;
+        const { name, description } = req.body;
+        const code = slugify(name, {lower:true});
         const results = await db.query(`INSERT INTO companies (code, name, description) VALUES ($1, $2, $3) RETURNING code, name, description`, [code, name, description]);
         return res.status(201).json({ company: results.rows[0] });
     }

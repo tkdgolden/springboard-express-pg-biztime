@@ -62,14 +62,6 @@ describe("POST /companies", () => {
         expect(res.body).toEqual({ company: ikea });
     })
 
-    test("Responds with 400 if code is missing", async () => {
-        const res = await request(app).post("/companies").send({
-            name: "Ikea",
-            description: "Sleek and minimal, falls apart"
-        });
-        expect(res.statusCode).toBe(400);
-    })
-
     test("Responds with 400 if name is missing", async () => {
         const res = await request(app).post("/companies").send({
             code: "ikea",
@@ -147,7 +139,11 @@ describe("/DELETE /companies/:code", () => {
       const res = await request(app).delete(`/companies/${sam.code}`);
       expect(res.statusCode).toBe(200);
       expect(res.body).toEqual({ status: 'deleted' })
+
+      const response = await request(app).get("/companies");
+      expect(response.body.companies.length).toEqual(0);
     })
+    
     
     test("Responds with 404 for deleting invalid company", async () => {
       const res = await request(app).delete(`/companies/msi`);
